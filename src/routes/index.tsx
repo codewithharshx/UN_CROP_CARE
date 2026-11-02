@@ -65,9 +65,29 @@ function Home() {
             </div>
             <Button asChild variant="outline" className="rounded-full"><Link to="/products">View all</Link></Button>
           </div>
-          <div className="mt-10 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
-            {products.slice(0, 4).map((p) => <ProductCard key={p.id} p={p} />)}
-          </div>
+          {products.length > 0 ? (
+            <div className="mt-10 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+              {products.slice(0, 4).map((p) => <ProductCard key={p.id} p={p} />)}
+            </div>
+          ) : (
+            <div className="mt-10 rounded-2xl border border-dashed bg-card/60 p-8 text-center sm:p-12">
+              <Sprout className="mx-auto h-10 w-10 text-muted-foreground/60" />
+              <h3 className="mt-4 text-lg font-semibold text-primary">Product catalogue updating</h3>
+              <p className="mt-2 mx-auto max-w-md text-sm text-muted-foreground">
+                Our certified organic bio-fertilizer and crop care catalog is currently being updated. You can view our authentic formulations in the gallery or connect directly with our agricultural specialists.
+              </p>
+              <div className="mt-6 flex flex-wrap justify-center gap-3">
+                <Button asChild size="sm" variant="outline" className="rounded-full">
+                  <Link to="/gallery">View field gallery</Link>
+                </Button>
+                <Button asChild size="sm" className="rounded-full">
+                  <a href={SITE.whatsappHref} target="_blank" rel="noreferrer">
+                    <PhoneCall className="h-4 w-4" /> WhatsApp enquiries
+                  </a>
+                </Button>
+              </div>
+            </div>
+          )}
         </div>
       </section>
 

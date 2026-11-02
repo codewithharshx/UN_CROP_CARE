@@ -30,42 +30,61 @@ export function checkRateLimit(key: string, limit = 5, windowMs = 60_000) {
 // 1. PUBLIC PRODUCTS DOMAIN LOGIC & SERVER FUNCTIONS
 // ---------------------------------------------------------------------------
 
-export async function getPublicProducts() {
-  const rows = await db
-    .select({
-      id: schema.products.id,
-      slug: schema.products.slug,
-      name: schema.products.name,
-      category: schema.products.category,
-      short_description: schema.products.shortDescription,
-      description: schema.products.description,
-      pack_sizes: schema.products.packSizes,
-      image_url: schema.products.imageUrl,
-    })
-    .from(schema.products)
-    .where(and(eq(schema.products.status, "published"), eq(schema.products.isPublic, true)))
-    .orderBy(asc(schema.products.sortOrder));
+function sanitizeDbError(error: unknown): string {
+  if (error instanceof Error) {
+    // Redact password or connection credentials if present in message
+    return error.message.replace(/:\/\/[^:]+:[^@]+@/, "://***:***@");
+  }
+  return String(error);
+}
 
-  return rows;
+export async function getPublicProducts() {
+  try {
+    const rows = await db
+      .select({
+        id: schema.products.id,
+        slug: schema.products.slug,
+        name: schema.products.name,
+        category: schema.products.category,
+        short_description: schema.products.shortDescription,
+        description: schema.products.description,
+        pack_sizes: schema.products.packSizes,
+        image_url: schema.products.imageUrl,
+      })
+      .from(schema.products)
+      .where(and(eq(schema.products.status, "published"), eq(schema.products.isPublic, true)))
+      .orderBy(asc(schema.products.sortOrder));
+
+    return rows;
+  } catch (error) {
+    console.error("[DATABASE UNAVAILABLE in getPublicProducts]:", sanitizeDbError(error));
+    // Graceful fallback: return empty list so the page and SSR render safely without throwing 500
+    return [];
+  }
 }
 
 export async function getPublicProductBySlug(slug: string) {
-  const rows = await db
-    .select({
-      id: schema.products.id,
-      slug: schema.products.slug,
-      name: schema.products.name,
-      category: schema.products.category,
-      short_description: schema.products.shortDescription,
-      description: schema.products.description,
-      pack_sizes: schema.products.packSizes,
-      image_url: schema.products.imageUrl,
-    })
-    .from(schema.products)
-    .where(and(eq(schema.products.slug, slug), eq(schema.products.isPublic, true)))
-    .limit(1);
+  try {
+    const rows = await db
+      .select({
+        id: schema.products.id,
+        slug: schema.products.slug,
+        name: schema.products.name,
+        category: schema.products.category,
+        short_description: schema.products.shortDescription,
+        description: schema.products.description,
+        pack_sizes: schema.products.packSizes,
+        image_url: schema.products.imageUrl,
+      })
+      .from(schema.products)
+      .where(and(eq(schema.products.slug, slug), eq(schema.products.isPublic, true)))
+      .limit(1);
 
-  return rows[0] ?? null;
+    return rows[0] ?? null;
+  } catch (error) {
+    console.error(`[DATABASE UNAVAILABLE in getPublicProductBySlug(${slug})]:`, sanitizeDbError(error));
+    return null;
+  }
 }
 
 export const listProducts = createServerFn({ method: "GET" }).handler(async () => {
@@ -122,39 +141,46 @@ export async function createPublicEnquiry(data: EnquiryInput) {
   // Rate limit per phone number
   checkRateLimit(`enquiry-${data.phone}`, 5, 60_000);
 
-  // Database transaction: insert enquiry + individual items
-  return await db.transaction(async (tx) => {
-    const [insertedEnquiry] = await tx
-      .insert(schema.enquiries)
-      .values({
-        name: data.name,
-        phone: data.phone,
-        email: data.email || null,
-        location: data.location || null,
-        pinCode: data.pin_code || null,
-        message: data.message || null,
-        items: data.items,
-        status: "New",
-      })
-      .returning({
-        id: schema.enquiries.id,
-        reference: schema.enquiries.reference,
-      });
+  try {
+    // Database transaction: insert enquiry + individual items
+    return await db.transaction(async (tx) => {
+      const [insertedEnquiry] = await tx
+        .insert(schema.enquiries)
+        .values({
+          name: data.name,
+          phone: data.phone,
+          email: data.email || null,
+          location: data.location || null,
+          pinCode: data.pin_code || null,
+          message: data.message || null,
+          items: data.items,
+          status: "New",
+        })
+        .returning({
+          id: schema.enquiries.id,
+          reference: schema.enquiries.reference,
+        });
 
-    if (data.items.length > 0) {
-      await tx.insert(schema.enquiryItems).values(
-        data.items.map((item) => ({
-          enquiryId: insertedEnquiry.id,
-          productSlug: item.slug,
-          productName: item.name,
-          quantity: item.quantity,
-          packSize: item.pack || null,
-        }))
-      );
-    }
+      if (data.items.length > 0) {
+        await tx.insert(schema.enquiryItems).values(
+          data.items.map((item) => ({
+            enquiryId: insertedEnquiry.id,
+            productSlug: item.slug,
+            productName: item.name,
+            quantity: item.quantity,
+            packSize: item.pack || null,
+          }))
+        );
+      }
 
-    return { reference: insertedEnquiry.reference };
-  });
+      return { reference: insertedEnquiry.reference };
+    });
+  } catch (err) {
+    console.error("[DATABASE ERROR in createPublicEnquiry]:", sanitizeDbError(err));
+    throw new Error(
+      "Enquiry submission is temporarily unavailable due to a database connection issue. Please contact us directly on WhatsApp or call 0788 732 7272."
+    );
+  }
 }
 
 export const submitEnquiry = createServerFn({ method: "POST" })
@@ -194,23 +220,30 @@ export async function createDealerApplication(data: DealerInput) {
   // Rate limit
   checkRateLimit(`dealer-${data.mobile}`, 5, 60_000);
 
-  await db.insert(schema.dealerApplications).values({
-    applicantName: data.applicant_name,
-    businessName: data.business_name,
-    mobile: data.mobile,
-    whatsapp: data.whatsapp || null,
-    email: data.email || null,
-    city: data.city,
-    state: data.state,
-    pinCode: data.pin_code || null,
-    businessType: data.business_type || null,
-    currentDealership: data.current_dealership || null,
-    experienceYears: data.experience_years || null,
-    message: data.message || null,
-    status: "New",
-  });
+  try {
+    await db.insert(schema.dealerApplications).values({
+      applicantName: data.applicant_name,
+      businessName: data.business_name,
+      mobile: data.mobile,
+      whatsapp: data.whatsapp || null,
+      email: data.email || null,
+      city: data.city,
+      state: data.state,
+      pinCode: data.pin_code || null,
+      businessType: data.business_type || null,
+      currentDealership: data.current_dealership || null,
+      experienceYears: data.experience_years || null,
+      message: data.message || null,
+      status: "New",
+    });
 
-  return { ok: true };
+    return { ok: true };
+  } catch (err) {
+    console.error("[DATABASE ERROR in createDealerApplication]:", sanitizeDbError(err));
+    throw new Error(
+      "Dealership application is temporarily unavailable due to a database connection issue. Please contact our team directly on WhatsApp or call 0788 732 7272."
+    );
+  }
 }
 
 export const submitDealer = createServerFn({ method: "POST" })
@@ -243,16 +276,23 @@ export async function createContactMessage(data: ContactInput) {
   // Rate limit
   checkRateLimit(`contact-${data.phone}`, 5, 60_000);
 
-  await db.insert(schema.contactMessages).values({
-    name: data.name,
-    phone: data.phone,
-    email: data.email || null,
-    subject: data.subject || null,
-    message: data.message,
-    status: "New",
-  });
+  try {
+    await db.insert(schema.contactMessages).values({
+      name: data.name,
+      phone: data.phone,
+      email: data.email || null,
+      subject: data.subject || null,
+      message: data.message,
+      status: "New",
+    });
 
-  return { ok: true };
+    return { ok: true };
+  } catch (err) {
+    console.error("[DATABASE ERROR in createContactMessage]:", sanitizeDbError(err));
+    throw new Error(
+      "Contact messaging is temporarily unavailable due to a database connection issue. Please contact us directly via email at info@uncropcare.in or call 0788 732 7272."
+    );
+  }
 }
 
 export const submitContact = createServerFn({ method: "POST" })

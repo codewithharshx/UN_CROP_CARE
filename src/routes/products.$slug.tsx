@@ -30,7 +30,22 @@ export const Route = createFileRoute("/products/$slug")({
       : [{ title: "Product unavailable — UN CROP CARE" }, { name: "robots", content: "noindex" }],
   }),
   notFoundComponent: () => (
-    <SiteLayout><div className="container-page py-32 text-center"><h1 className="text-3xl text-primary">Product not found</h1><Link to="/products" className="mt-4 inline-block text-primary underline">Back to products</Link></div></SiteLayout>
+    <SiteLayout>
+      <div className="container-page py-32 text-center">
+        <h1 className="text-3xl font-semibold text-primary">Product not found</h1>
+        <p className="mt-3 text-muted-foreground">The product you are looking for may have been updated or moved.</p>
+        <div className="mt-6 flex justify-center gap-3">
+          <Button asChild variant="outline" className="rounded-full">
+            <Link to="/products">Back to catalogue</Link>
+          </Button>
+          <Button asChild className="rounded-full">
+            <a href={waLink("Hello UN CROP CARE, I am looking for a product.")} target="_blank" rel="noreferrer">
+              Ask on WhatsApp
+            </a>
+          </Button>
+        </div>
+      </div>
+    </SiteLayout>
   ),
   component: ProductPage,
 });

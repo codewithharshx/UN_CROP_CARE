@@ -5,7 +5,9 @@ import { Search } from "lucide-react";
 import { SiteLayout, PageHeader } from "@/components/site/SiteLayout";
 import { ProductCard } from "@/components/site/ProductCard";
 import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 import { productsQuery } from "@/lib/queries";
+import { SITE } from "@/lib/site";
 
 export const Route = createFileRoute("/products/")({
   head: () => ({
@@ -52,10 +54,26 @@ function Products() {
             </select>
           </div>
         </div>
-        <div className="mt-10 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
-          {list.map((p) => <ProductCard key={p.id} p={p} />)}
-        </div>
-        {list.length === 0 && <p className="py-20 text-center text-muted-foreground">No products match your search.</p>}
+        {list.length > 0 ? (
+          <div className="mt-10 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+            {list.map((p) => <ProductCard key={p.id} p={p} />)}
+          </div>
+        ) : (
+          <div className="mt-10 rounded-2xl border border-dashed bg-card/60 py-20 px-4 text-center">
+            <p className="text-muted-foreground">
+              {q || cat !== "All"
+                ? "No products match your search."
+                : "Product catalogue is currently being synchronized. Please contact our team via WhatsApp for pricing and availability."}
+            </p>
+            <div className="mt-6 flex justify-center gap-3">
+              <Button asChild size="sm" variant="outline" className="rounded-full">
+                <a href={SITE.whatsappHref} target="_blank" rel="noreferrer">
+                  Contact on WhatsApp
+                </a>
+              </Button>
+            </div>
+          </div>
+        )}
       </section>
     </SiteLayout>
   );
