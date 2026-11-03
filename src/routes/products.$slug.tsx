@@ -71,6 +71,7 @@ function ProductPage() {
             {p.description && <p className="mt-4 whitespace-pre-line text-foreground">{p.description}</p>}
             <dl className="mt-8 divide-y rounded-2xl border bg-card">
               <div className="flex justify-between p-4 text-sm"><dt className="text-muted-foreground">Pack sizes</dt><dd className="font-medium">{p.pack_sizes || "On request"}</dd></div>
+              <div className="flex justify-between p-4 text-sm"><dt className="text-muted-foreground">Pricing</dt><dd className="font-semibold text-leaf">Contact for Price / Wholesale Quote</dd></div>
               <div className="flex justify-between p-4 text-sm"><dt className="text-muted-foreground">Usage & dosage</dt><dd className="font-medium">Ask our team</dd></div>
             </dl>
             <div className="mt-8 flex flex-wrap gap-3">

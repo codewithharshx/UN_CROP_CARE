@@ -191,4 +191,27 @@ describe("Phase 3: Drizzle Public & Admin Domain & Server Logic Test Suite", () 
     await expect(fetchAdminContactMessages(undefined)).rejects.toThrow("Unauthorized");
     await expect(fetchAdminProducts(undefined)).rejects.toThrow("Unauthorized");
   });
+
+  it("DEMO FALLBACK: provides all 8 verified products with primary WebP images and specs", async () => {
+    const { DEMO_PRODUCTS } = await import("../lib/demo-products");
+    expect(DEMO_PRODUCTS.length).toBe(8);
+    const demoSlugs = DEMO_PRODUCTS.map((d) => d.slug);
+    expect(demoSlugs).toEqual([
+      "soil-super",
+      "soil-super-granules",
+      "volvo-super",
+      "martin-gold",
+      "robust",
+      "recover",
+      "un-zyme",
+      "un-saf",
+    ]);
+
+    for (const d of DEMO_PRODUCTS) {
+      expect(d.image_url).toMatch(/^\/images\/products\/.*\/primary\.webp$/);
+      expect(d.pack_sizes).toBeTruthy();
+      expect(d.short_description).toBeTruthy();
+      expect(d.description).toBeTruthy();
+    }
+  });
 });

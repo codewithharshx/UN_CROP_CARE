@@ -3,6 +3,7 @@ import { eq, and, asc } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "./db";
 import * as schema from "../../drizzle/schema";
+import { DEMO_PRODUCTS } from "./demo-products";
 
 // ---------------------------------------------------------------------------
 // Rate Limiter (In-Memory per process / IP or phone identifier)
@@ -55,11 +56,38 @@ export async function getPublicProducts() {
       .where(and(eq(schema.products.status, "published"), eq(schema.products.isPublic, true)))
       .orderBy(asc(schema.products.sortOrder));
 
-    return rows;
+    // Database priority: if database returned published products, return them
+    if (rows && rows.length > 0) {
+      return rows;
+    }
+
+    // Database returned 0 rows: use verified demo catalogue fallback
+    return DEMO_PRODUCTS.map((p) => ({
+      id: p.id,
+      slug: p.slug,
+      name: p.name,
+      category: p.category,
+      short_description: p.short_description,
+      description: p.description,
+      pack_sizes: p.pack_sizes,
+      image_url: p.image_url,
+    }));
   } catch (error) {
-    console.error("[DATABASE UNAVAILABLE in getPublicProducts]:", sanitizeDbError(error));
-    // Graceful fallback: return empty list so the page and SSR render safely without throwing 500
-    return [];
+    console.warn(
+      "[DATABASE UNAVAILABLE in getPublicProducts]: using verified demo catalogue fallback.",
+      sanitizeDbError(error)
+    );
+    // Graceful fallback to verified demo products
+    return DEMO_PRODUCTS.map((p) => ({
+      id: p.id,
+      slug: p.slug,
+      name: p.name,
+      category: p.category,
+      short_description: p.short_description,
+      description: p.description,
+      pack_sizes: p.pack_sizes,
+      image_url: p.image_url,
+    }));
   }
 }
 
@@ -80,9 +108,44 @@ export async function getPublicProductBySlug(slug: string) {
       .where(and(eq(schema.products.slug, slug), eq(schema.products.isPublic, true)))
       .limit(1);
 
-    return rows[0] ?? null;
+    if (rows[0]) {
+      return rows[0];
+    }
+
+    // Demo fallback lookup by slug
+    const demo = DEMO_PRODUCTS.find((p) => p.slug === slug);
+    if (demo) {
+      return {
+        id: demo.id,
+        slug: demo.slug,
+        name: demo.name,
+        category: demo.category,
+        short_description: demo.short_description,
+        description: demo.description,
+        pack_sizes: demo.pack_sizes,
+        image_url: demo.image_url,
+      };
+    }
+
+    return null;
   } catch (error) {
-    console.error(`[DATABASE UNAVAILABLE in getPublicProductBySlug(${slug})]:`, sanitizeDbError(error));
+    console.warn(
+      `[DATABASE UNAVAILABLE in getPublicProductBySlug(${slug})]: using demo product fallback.`,
+      sanitizeDbError(error)
+    );
+    const demo = DEMO_PRODUCTS.find((p) => p.slug === slug);
+    if (demo) {
+      return {
+        id: demo.id,
+        slug: demo.slug,
+        name: demo.name,
+        category: demo.category,
+        short_description: demo.short_description,
+        description: demo.description,
+        pack_sizes: demo.pack_sizes,
+        image_url: demo.image_url,
+      };
+    }
     return null;
   }
 }
